@@ -1445,7 +1445,7 @@ TouchButtonAccumulator::TouchButtonAccumulator() :
 }
 
 void TouchButtonAccumulator::configure(InputDevice* device) {
-    mHaveBtnTouch = device->hasKey(BTN_TOUCH);
+    mHaveBtnTouch = device->hasKey(BTN_TOUCH) || device->hasKey(BTN_LEFT);
     mHaveStylus = device->hasKey(BTN_TOOL_PEN)
             || device->hasKey(BTN_TOOL_RUBBER)
             || device->hasKey(BTN_TOOL_BRUSH)
@@ -1454,7 +1454,7 @@ void TouchButtonAccumulator::configure(InputDevice* device) {
 }
 
 void TouchButtonAccumulator::reset(InputDevice* device) {
-    mBtnTouch = device->isKeyPressed(BTN_TOUCH);
+    mBtnTouch = device->isKeyPressed(BTN_TOUCH) || device->isKeyPressed(BTN_LEFT);
     mBtnStylus = device->isKeyPressed(BTN_STYLUS);
     // BTN_0 is what gets mapped for the HID usage Digitizers.SecondaryBarrelSwitch
     mBtnStylus2 =
@@ -1493,6 +1493,7 @@ void TouchButtonAccumulator::process(const RawEvent* rawEvent) {
     if (rawEvent->type == EV_KEY) {
         switch (rawEvent->code) {
         case BTN_TOUCH:
+        case BTN_LEFT:
             mBtnTouch = rawEvent->value;
             break;
         case BTN_STYLUS:
