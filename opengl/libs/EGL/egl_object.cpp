@@ -125,11 +125,6 @@ void egl_context_t::onMakeCurrent(EGLSurface draw, EGLSurface read) {
         // call the implementation's glGetString(GL_EXTENSIONS)
         const char* exts = (const char *)gEGLImpl.hooks[version]->gl.glGetString(GL_EXTENSIONS);
         gl_extensions.setTo(exts);
-        if (gl_extensions.find("GL_EXT_debug_marker") < 0) {
-            String8 temp("GL_EXT_debug_marker ");
-            temp.append(gl_extensions);
-            gl_extensions.setTo(temp);
-        }
 
         // tokenize the supported extensions for the glGetStringi() wrapper
         std::stringstream ss;
