@@ -28,6 +28,8 @@
 
 #include <unistd.h>
 
+#define ADD_SERVICE_RETRY_SECS 10
+
 namespace android {
 
 sp<IServiceManager> defaultServiceManager()
@@ -162,13 +164,26 @@ public:
     virtual status_t addService(const String16& name, const sp<IBinder>& service,
             bool allowIsolated)
     {
-        Parcel data, reply;
-        data.writeInterfaceToken(IServiceManager::getInterfaceDescriptor());
-        data.writeString16(name);
-        data.writeStrongBinder(service);
-        data.writeInt32(allowIsolated ? 1 : 0);
-        status_t err = remote()->transact(ADD_SERVICE_TRANSACTION, data, &reply);
-        return err == NO_ERROR ? reply.readExceptionCode() : err;
+        status_t err;
+        for (int i=0; i<ADD_SERVICE_RETRY_SECS; i++) {
+            Parcel data, reply;
+            data.writeInterfaceToken(IServiceManager::getInterfaceDescriptor());
+            data.writeString16(name);
+            data.writeStrongBinder(service);
+            data.writeInt32(allowIsolated ? 1 : 0);
+            err = remote()->transact(ADD_SERVICE_TRANSACTION, data, &reply);
+            if (err == NO_ERROR)
+                return reply.readExceptionCode();
+            if (i != ADD_SERVICE_RETRY_SECS) {
+                ALOGI("addService() %s failed (err %d - no service manager yet?).  Retrying...\n",
+                      String8(name).string(), err);
+                sleep(1);
+            } else {
+                ALOGE("addService() %s failed (err %d).  Giving up.\n",
+                      String8(name).string(), err);
+            }
+        }
+        return err;
     }
 
     virtual Vector<String16> listServices()
