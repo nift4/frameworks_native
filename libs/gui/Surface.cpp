@@ -323,6 +323,9 @@ int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
             ALOGE("dequeueBuffer: IGraphicBufferProducer::requestBuffer failed: %d", result);
             mGraphicBufferProducer->cancelBuffer(buf, fence);
             return result;
+        } else if (gbuf == 0) {
+            ALOGE("dequeueBuffer: Buffer is null return");
+            return INVALID_OPERATION;
         }
     }
 
