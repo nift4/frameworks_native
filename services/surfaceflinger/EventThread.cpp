@@ -285,11 +285,11 @@ Vector< sp<EventThread::Connection> > EventThread::waitForEvent(
         }
 
         // Here we figure out if we need to enable or disable vsyncs
-        if (timestamp && !waitForVSync) {
-            // we received a VSYNC but we have no clients
-            // don't report it, and disable VSYNC events
+        if (!waitForVSync) {
+            // we have no clients waiting on next VSYNC
+            // just disable VSYNC events.
             disableVSyncLocked();
-        } else if (!timestamp && waitForVSync) {
+        } else if (!timestamp) {
             // we have at least one client, so we want vsync enabled
             // (TODO: this function is called right after we finish
             // notifying clients of a vsync, so this call will be made
