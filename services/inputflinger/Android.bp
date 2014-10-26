@@ -91,6 +91,11 @@ cc_library_shared {
         "libstatslog",
     ],
 
+    cflags: [
+        "-DCONSOLE_MANAGER",
+        "-DANDROID_VT=7",
+    ],
+
     header_libs: [
         "libinputflinger_headers",
     ],

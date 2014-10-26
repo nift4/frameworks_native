@@ -331,6 +331,9 @@ public:
     // Inherit from ClientCache::ErasedRecipient
     void bufferErased(const client_cache_t& clientCacheId) override;
 
+    void screenReleased(const sp<IBinder>& display);
+    void screenAcquired(const sp<IBinder>& display);
+
 private:
     friend class BufferLayer;
     friend class BufferQueueLayer;
