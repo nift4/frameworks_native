@@ -44,6 +44,7 @@
 #endif
 
 struct ANativeWindow;
+class ConsoleManagerThread;
 
 namespace android {
 
@@ -235,6 +236,10 @@ private:
 
     // list of visible layers on that display
     Vector< sp<Layer> > mVisibleLayersSortedByZ;
+
+#ifdef CONSOLE_MANAGER
+    sp<ConsoleManagerThread> mConsoleManagerThread;
+#endif
 
     /*
      * Transaction state
