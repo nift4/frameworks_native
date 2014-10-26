@@ -51,6 +51,8 @@ cc_library_shared {
     ],
 
     cflags: [
+        "-DCONSOLE_MANAGER",
+        "-DANDROID_VT=7",
         // TODO(b/23084678): Move inputflinger to its own process and mark it hidden
         //-fvisibility=hidden
     ],
