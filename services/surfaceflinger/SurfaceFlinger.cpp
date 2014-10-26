@@ -1007,8 +1007,27 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
     public:
         static float getEmuDensity() {
             return getDensityFromProperty("qemu.sf.lcd_density"); }
-        static float getBuildDensity()  {
-            return getDensityFromProperty("ro.sf.lcd_density"); }
+        static float getBuildDensity(const DisplayInfo& info)  {
+            static float density = getDensityFromProperty("ro.sf.lcd_density");
+#if defined(__i386__) || defined(__x86_64__)
+            if (density == 0.0f) {
+                uint32_t area = info.w * info.h;
+                if (area <= 800 * 480) {
+                    density = 120.0f;
+                } else if (area <= 1024 * 600) {
+                    density = 130.0f;
+                } else if (area < 1024 * 768) {
+                    density = 140.0f;
+                } else if (area < 1920 * 1080) {
+                    density = 160.0f;
+                } else {
+                    density = 240.0f;
+                }
+                ALOGI("auto set density to %f", density);
+            }
+#endif
+            return density;
+        }
     };
 
     configs->clear();
@@ -1018,6 +1037,8 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
 
         float xdpi = hwConfig->getDpiX();
         float ydpi = hwConfig->getDpiY();
+        info.w = hwConfig->getWidth();
+        info.h = hwConfig->getHeight();
 
         info.w = hwConfig->getWidth();
         info.h = hwConfig->getHeight();
@@ -1027,7 +1048,7 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
 
         if (displayId == getInternalDisplayIdLocked()) {
             // The density of the device is provided by a build property
-            float density = Density::getBuildDensity() / 160.0f;
+            float density = Density::getBuildDensity(info) / 160.0f;
             if (density == 0) {
                 // the build doesn't provide a density -- this is wrong!
                 // use xdpi instead
