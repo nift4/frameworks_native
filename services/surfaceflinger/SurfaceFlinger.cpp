@@ -1427,6 +1427,20 @@ void SurfaceFlinger::waitForEvent() {
     mEventQueue->waitMessage();
 }
 
+#ifdef CONSOLE_MANAGER
+void SurfaceFlinger::screenReleased(const sp<IBinder>& display) {
+    // this may be called by a signal handler, we can't do too much in here
+    setPowerMode(display, HWC_POWER_MODE_OFF);
+    signalLayerUpdate();
+}
+
+void SurfaceFlinger::screenAcquired(const sp<IBinder>& display) {
+    // this may be called by a signal handler, we can't do too much in here
+    setPowerMode(display, HWC_POWER_MODE_NORMAL);
+    signalLayerUpdate();
+}
+#endif
+
 void SurfaceFlinger::signalTransaction() {
     mScheduler->resetIdleTimer();
     mEventQueue->invalidate();
