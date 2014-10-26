@@ -49,6 +49,7 @@ class HWComposer;
 class IGraphicBufferProducer;
 class Layer;
 class SurfaceFlinger;
+class ConsoleManagerThread;
 
 struct CompositionInfo;
 struct DisplayDeviceCreationArgs;
@@ -184,6 +185,10 @@ private:
     Vector< sp<Layer> > mVisibleLayersSortedByZ;
     // list of layers needing fences
     Vector< sp<Layer> > mLayersNeedingFences;
+
+#ifdef CONSOLE_MANAGER
+    sp<ConsoleManagerThread> mConsoleManagerThread;
+#endif
 
     /*
      * Transaction state
