@@ -140,12 +140,15 @@ cc_library_shared {
     cflags: [
         "-fvisibility=hidden",
         "-Werror=format",
+        "-DCONSOLE_MANAGER",
+        "-DANDROID_VT=7",
     ],
     srcs: [
         ":libsurfaceflinger_sources",
     ],
     logtags: ["EventLog/EventLogTags.logtags"],
     include_dirs: [
+        "external/drm_gralloc",
         "frameworks/native/vulkan/vkjson",
         "frameworks/native/vulkan/include",
     ],

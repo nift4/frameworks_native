@@ -41,6 +41,8 @@ cc_library_shared {
         "-Wall",
         "-Wextra",
         "-Werror",
+        "-DCONSOLE_MANAGER",
+        "-DANDROID_VT=7",
         "-Wno-unused-parameter",
         // TODO: Move inputflinger to its own process and mark it hidden
         //-fvisibility=hidden
