@@ -171,6 +171,10 @@ cc_library_shared {
     cppflags: [
         "-Wno-unused-parameter",
     ],
+    cflags: [
+        "-DCONSOLE_MANAGER",
+        "-DANDROID_VT=7",
+    ],
     srcs: [
         ":libsurfaceflinger_sources",
 
@@ -179,6 +183,9 @@ cc_library_shared {
         "SurfaceFlingerFactory.cpp",
     ],
     logtags: ["EventLog/EventLogTags.logtags"],
+    include_dirs: [
+        "external/drm_gralloc",
+    ],
     product_variables: {
         bliss: {
             uses_qcom_um_family: {
