@@ -3299,6 +3299,19 @@ void TouchInputMapper::configure(nsecs_t when,
         configureSurface(when, &resetNeeded);
     }
 
+    if (!changes || (changes & InputReaderConfiguration::CHANGE_DEVICE_ALIAS)) {
+        // Get 5-point calibration parameters
+        int *p = mCalibration.fiveCal;
+        p[6] = 0;
+        if (FILE *file = fopen("/data/misc/tscal/pointercal", "r")) {
+            if (fscanf(file, "%d %d %d %d %d %d %d", &p[0], &p[1], &p[2], &p[3], &p[4], &p[5], &p[6]) == 7) {
+                p[0] *= mXScale, p[1] *= mYScale, p[3] *= mXScale, p[4] *= mYScale;
+                ALOGD("pointercal loaded ok");
+            }
+            fclose(file);
+        }
+    }
+
     if (changes && resetNeeded) {
         // Send reset, unless this is the first time the device has been configured,
         // in which case the reader will call reset itself after all mappers are ready.
@@ -5161,11 +5174,24 @@ void TouchInputMapper::cookPointerData() {
         // Adjust X, Y, and coverage coords for surface orientation.
         float x, y;
         float left, top, right, bottom;
+        float x_temp = float(xTransformed - mRawPointerAxes.x.minValue);
+        float y_temp = float(yTransformed - mRawPointerAxes.y.minValue);
+        float x_cal, y_cal;
+        int *p = mCalibration.fiveCal;
+        if (p[6]) {
+            // Apply 5-point calibration algorithm
+            x_cal = (x_temp * p[0] + y_temp * p[1] + p[2] ) / p[6];
+            y_cal = (x_temp * p[3] + y_temp * p[4] + p[5] ) / p[6];
+            ALOGV("5cal: x_temp=%f y_temp=%f x_cal=%f y_cal=%f", x_temp, y_temp, x_cal, y_cal);
+        } else {
+            x_cal = x_temp * mXScale;
+            y_cal = y_temp * mYScale;
+        }
 
         switch (mSurfaceOrientation) {
         case DISPLAY_ORIENTATION_90:
-            x = float(yTransformed - mRawPointerAxes.y.minValue) * mYScale + mYTranslate;
-            y = float(mRawPointerAxes.x.maxValue - xTransformed) * mXScale + mXTranslate;
+            x = y_cal + mYTranslate;
+            y = mSurfaceWidth - x_cal + mXTranslate;
             left = float(rawTop - mRawPointerAxes.y.minValue) * mYScale + mYTranslate;
             right = float(rawBottom- mRawPointerAxes.y.minValue) * mYScale + mYTranslate;
             bottom = float(mRawPointerAxes.x.maxValue - rawLeft) * mXScale + mXTranslate;
@@ -5176,8 +5202,8 @@ void TouchInputMapper::cookPointerData() {
             }
             break;
         case DISPLAY_ORIENTATION_180:
-            x = float(mRawPointerAxes.x.maxValue - xTransformed) * mXScale;
-            y = float(mRawPointerAxes.y.maxValue - yTransformed) * mYScale + mYTranslate;
+            x = mSurfaceWidth - x_cal;
+            y = mSurfaceHeight - y_cal + mYTranslate;
             left = float(mRawPointerAxes.x.maxValue - rawRight) * mXScale;
             right = float(mRawPointerAxes.x.maxValue - rawLeft) * mXScale;
             bottom = float(mRawPointerAxes.y.maxValue - rawTop) * mYScale + mYTranslate;
@@ -5188,8 +5214,8 @@ void TouchInputMapper::cookPointerData() {
             }
             break;
         case DISPLAY_ORIENTATION_270:
-            x = float(mRawPointerAxes.y.maxValue - yTransformed) * mYScale;
-            y = float(xTransformed - mRawPointerAxes.x.minValue) * mXScale + mXTranslate;
+            x = mSurfaceHeight - y_cal;
+            y = x_cal + mXTranslate;
             left = float(mRawPointerAxes.y.maxValue - rawBottom) * mYScale;
             right = float(mRawPointerAxes.y.maxValue - rawTop) * mYScale;
             bottom = float(rawRight - mRawPointerAxes.x.minValue) * mXScale + mXTranslate;
@@ -5200,8 +5226,8 @@ void TouchInputMapper::cookPointerData() {
             }
             break;
         default:
-            x = float(xTransformed - mRawPointerAxes.x.minValue) * mXScale + mXTranslate;
-            y = float(yTransformed - mRawPointerAxes.y.minValue) * mYScale + mYTranslate;
+            x = x_cal + mXTranslate;
+            y = y_cal + mYTranslate;
             left = float(rawLeft - mRawPointerAxes.x.minValue) * mXScale + mXTranslate;
             right = float(rawRight - mRawPointerAxes.x.minValue) * mXScale + mXTranslate;
             bottom = float(rawBottom - mRawPointerAxes.y.minValue) * mYScale + mYTranslate;
