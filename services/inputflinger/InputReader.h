@@ -1390,6 +1390,9 @@ protected:
                 *outSize = 0;
             }
         }
+
+        // 5-point calibration parameters
+        int fiveCal[7];
     } mCalibration;
 
     // Affine location transformation/calibration
