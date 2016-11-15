@@ -27,6 +27,7 @@
 #define ANDROID_NATIVE_WINDOW_H
 
 #include <android/rect.h>
+#include <system/window.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,19 +45,6 @@ enum {
     WINDOW_FORMAT_RGB_565            = 4,
 };
 
-struct ANativeWindow;
-/**
- * {@link ANativeWindow} is opaque type that provides access to a native window.
- *
- * A pointer can be obtained using ANativeWindow_fromSurface().
- */
-typedef struct ANativeWindow ANativeWindow;
-
-/**
- * {@link ANativeWindow} is a struct that represents a windows buffer.
- *
- * A pointer can be obtained using ANativeWindow_lock().
- */
 typedef struct ANativeWindow_Buffer {
     // The number of pixels that are show horizontally.
     int32_t width;
