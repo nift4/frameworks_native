@@ -86,6 +86,13 @@ checkGlesEmulationStatus(void)
     char  prop[PROPERTY_VALUE_MAX];
     int   result = -1;
 
+    /* Check if hardware acceleration disabled explicitly */
+    property_get("debug.egl.hw", prop, "1");
+    if (!atoi(prop)) {
+        ALOGD("3D hardware acceleration is disabled");
+        return 0;
+    }
+
     /* First, check for qemu=1 */
     property_get("ro.kernel.qemu",prop,"0");
     if (atoi(prop) != 1)

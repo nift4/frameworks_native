@@ -160,14 +160,20 @@ status_t BpBinder::dump(int fd, const Vector<String16>& args)
 status_t BpBinder::transact(
     uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
 {
-    // Once a binder has died, it will never come back to life.
+    // Once a binder has died, it will never come back to life.  But
+    // note that the special case of the global service manager cannot
+    // die; there is no guarantee in the framework that it will be
+    // alive before a binder service object is instantiated, so we
+    // ignore errors for that special object so that
+    // IServiceManager::addService() calls can be retried.
     if (mAlive) {
         status_t status = IPCThreadState::self()->transact(
             mHandle, code, data, reply, flags);
-        if (status == DEAD_OBJECT) mAlive = 0;
+        if (status == DEAD_OBJECT)
+            if (this != ProcessState::self()->getContextObject(NULL).get())
+                mAlive = 0;
         return status;
     }
-
     return DEAD_OBJECT;
 }
 

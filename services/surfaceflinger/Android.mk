@@ -40,6 +40,7 @@ LOCAL_SRC_FILES := \
 
 LOCAL_C_INCLUDES := \
 	frameworks/native/vulkan/include \
+	$(if $(BOARD_GPU_DRIVERS),external/drm_gralloc) \
 	external/vulkan-validation-layers/libs/vkjson
 
 LOCAL_CFLAGS := -DLOG_TAG=\"SurfaceFlinger\"
@@ -56,6 +57,9 @@ else
         DisplayHardware/HWComposer_hwc1.cpp
 endif
 
+ifneq ($(TARGET_BUILD_VARIANT),user)
+	LOCAL_CFLAGS += -DCONSOLE_MANAGER -DANDROID_VT=7
+endif
 ifeq ($(TARGET_BOARD_PLATFORM),omap4)
     LOCAL_CFLAGS += -DHAS_CONTEXT_PRIORITY
 endif
