@@ -23,6 +23,7 @@
 
 #include <hardware/gralloc.h>
 #include <system/window.h>
+#include <sys/mman.h>
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -440,6 +441,35 @@ EGLBoolean eglGetConfigAttrib(EGLDisplay dpy, EGLConfig config,
 }
 
 // ----------------------------------------------------------------------------
+// Utility procedure to test a NativeWindowType for validity before referencing
+// through the pointer.  It's not feasible to test for deliberate forgeries,
+// but this heuristic is good enough to test for basic accidental cases, using
+// the special "magic" value placed in a native-window structure.
+// ----------------------------------------------------------------------------
+EGLBoolean isValidNativeWindow(NativeWindowType window)
+{
+    ANativeWindow *nwindow = static_cast<ANativeWindow*>(window);
+    // the msync system call returns with ENOMEM error for unmapped memory
+    // pages.  This is used here as a way to test whether we can read through a
+    // pointer without getting a segfault.
+    uintptr_t pagesize = (uintptr_t) sysconf(_SC_PAGESIZE);
+    uintptr_t addr = ((uintptr_t)(&nwindow->common.magic)) & (~(pagesize - 1));
+    int rc = msync((void *)addr, pagesize, MS_ASYNC);
+    if (0 == rc) {
+        if (nwindow->common.magic == ANDROID_NATIVE_WINDOW_MAGIC)
+            return EGL_TRUE;
+        else
+            return EGL_FALSE;
+    }
+    if (ENOMEM == errno)
+        return EGL_FALSE;
+    ALOGE("error unexpected msync error: %s (%d)",
+                            strerror(-errno), errno);
+    return EGL_FALSE;
+}
+
+
+// ----------------------------------------------------------------------------
 // surfaces
 // ----------------------------------------------------------------------------
 
@@ -474,6 +504,10 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
     if (dp) {
         EGLDisplay iDpy = dp->disp.dpy;
 
+        if (!isValidNativeWindow(window)) {
+            ALOGE("EGLNativeWindow %p invalid", window);
+            return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
+        }
         int result = native_window_api_connect(window, NATIVE_WINDOW_API_EGL);
         if (result != OK) {
             ALOGE("eglCreateWindowSurface: native_window_api_connect (win=%p) "
