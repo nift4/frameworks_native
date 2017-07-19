@@ -41,6 +41,7 @@ SyncFeatures::SyncFeatures() : Singleton<SyncFeatures>(),
     // This can only be called after EGL has been initialized; otherwise the
     // check below will abort.
     const char* exts = eglQueryStringImplementationANDROID(dpy, EGL_EXTENSIONS);
+    ALOGD("EGL extensions: %s", exts);
     LOG_ALWAYS_FATAL_IF(exts == NULL, "eglQueryStringImplementationANDROID failed");
     if (strstr(exts, "EGL_ANDROID_native_fence_sync")) {
         // This makes GLConsumer use the EGL_ANDROID_native_fence_sync
@@ -55,9 +56,9 @@ SyncFeatures::SyncFeatures() : Singleton<SyncFeatures>(),
         mHasWaitSync = true;
     }
     mString.append("[using:");
-    if (useNativeFenceSync()) {
+    /*if (false) {
         mString.append(" EGL_ANDROID_native_fence_sync");
-    }
+    }*/
     if (useFenceSync()) {
         mString.append(" EGL_KHR_fence_sync");
     }
@@ -70,7 +71,14 @@ SyncFeatures::SyncFeatures() : Singleton<SyncFeatures>(),
 bool SyncFeatures::useNativeFenceSync() const {
     // EGL_ANDROID_native_fence_sync is not compatible with using the
     // EGL_KHR_fence_sync extension for the same purpose.
-    return mHasNativeFenceSync;
+
+    //
+    // HACK: Don't let system know the display driver is capable of
+    // EGL_ANDROID_native_fence_sync, even if it reported so.
+    //
+    // return mHasNativeFenceSync;
+    //
+    return false;
 }
 bool SyncFeatures::useFenceSync() const {
 #ifdef DONT_USE_FENCE_SYNC
