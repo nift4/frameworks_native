@@ -134,7 +134,7 @@ RenderEngine* RenderEngine::create(EGLDisplay display, int hwcFormat) {
     }
     engine->setEGLHandles(config, ctxt);
 
-    ALOGI("OpenGL ES informations:");
+    ALOGI("OpenGL ES informations: format=0x%x", hwcFormat);
     ALOGI("vendor    : %s", extensions.getVendor());
     ALOGI("renderer  : %s", extensions.getRenderer());
     ALOGI("version   : %s", extensions.getVersion());
@@ -404,6 +404,15 @@ EGLConfig RenderEngine::chooseEglConfig(EGLDisplay display, int format) {
     status_t err;
     EGLConfig config;
 
+    if (format != HAL_PIXEL_FORMAT_RGBA_8888) {
+        ALOGI("Trying a simpler query for non-RGBA_8888");
+        err = selectEGLConfig(display, format, 0, &config);
+        if (err != NO_ERROR) {
+            LOG_ALWAYS_FATAL("no suitable EGLConfig found, giving up");
+        }
+        goto print;
+    }
+
     // First try to get an ES2 config
     err = selectEGLConfig(display, format, EGL_OPENGL_ES2_BIT, &config);
     if (err != NO_ERROR) {
@@ -421,13 +430,14 @@ EGLConfig RenderEngine::chooseEglConfig(EGLDisplay display, int format) {
         }
     }
 
+print:
     // print some debugging info
     EGLint r,g,b,a;
     eglGetConfigAttrib(display, config, EGL_RED_SIZE,   &r);
     eglGetConfigAttrib(display, config, EGL_GREEN_SIZE, &g);
     eglGetConfigAttrib(display, config, EGL_BLUE_SIZE,  &b);
     eglGetConfigAttrib(display, config, EGL_ALPHA_SIZE, &a);
-    ALOGI("EGL information:");
+    ALOGI("EGL information: format=0x%x", format);
     ALOGI("vendor    : %s", eglQueryString(display, EGL_VENDOR));
     ALOGI("version   : %s", eglQueryString(display, EGL_VERSION));
     ALOGI("extensions: %s", eglQueryString(display, EGL_EXTENSIONS));
