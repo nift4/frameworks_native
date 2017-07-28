@@ -126,7 +126,7 @@ std::unique_ptr<RenderEngine> RenderEngine::create(int hwcFormat, uint32_t featu
     }
     engine->setEGLHandles(display, config, ctxt);
 
-    ALOGI("OpenGL ES informations:");
+    ALOGI("OpenGL ES informations: format=0x%x", hwcFormat);
     ALOGI("vendor    : %s", extensions.getVendor());
     ALOGI("renderer  : %s", extensions.getRenderer());
     ALOGI("version   : %s", extensions.getVersion());
@@ -555,9 +555,14 @@ EGLConfig RenderEngine::chooseEglConfig(EGLDisplay display, int format, bool log
     status_t err;
     EGLConfig config;
 
-    // First try to get an ES2 config
-    err = selectEGLConfig(display, format, EGL_OPENGL_ES2_BIT, &config);
-    if (err != NO_ERROR) {
+    // Only try to get an ES2 config if format is RGBA_8888
+    if (format != HAL_PIXEL_FORMAT_RGBA_8888) {
+        ALOGI("Trying a simpler query for non-RGBA_8888");
+        err = selectEGLConfig(display, format, 0, &config);
+        if (err != NO_ERROR) {
+            LOG_ALWAYS_FATAL("no suitable EGLConfig found, giving up");
+        }
+    } else if ((err = selectEGLConfig(display, format, EGL_OPENGL_ES2_BIT, &config)) != NO_ERROR) {
         // If ES2 fails, try ES1
         err = selectEGLConfig(display, format, EGL_OPENGL_ES_BIT, &config);
         if (err != NO_ERROR) {
@@ -579,7 +584,7 @@ EGLConfig RenderEngine::chooseEglConfig(EGLDisplay display, int format, bool log
         eglGetConfigAttrib(display, config, EGL_GREEN_SIZE, &g);
         eglGetConfigAttrib(display, config, EGL_BLUE_SIZE, &b);
         eglGetConfigAttrib(display, config, EGL_ALPHA_SIZE, &a);
-        ALOGI("EGL information:");
+        ALOGI("EGL information: format=0x%x", format);
         ALOGI("vendor    : %s", eglQueryString(display, EGL_VENDOR));
         ALOGI("version   : %s", eglQueryString(display, EGL_VERSION));
         ALOGI("extensions: %s", eglQueryString(display, EGL_EXTENSIONS));
