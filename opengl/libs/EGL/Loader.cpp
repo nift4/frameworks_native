@@ -92,13 +92,6 @@ checkGlesEmulationStatus(void)
     char  prop[PROPERTY_VALUE_MAX];
     int   result = -1;
 
-    /* Check if hardware acceleration disabled explicitly */
-    property_get("debug.egl.hw", prop, "1");
-    if (!atoi(prop)) {
-        ALOGD("3D hardware acceleration is disabled");
-        return 0;
-    }
-
     /* First, check for qemu=1 */
     property_get("ro.kernel.qemu",prop,"0");
     if (atoi(prop) != 1)
@@ -249,7 +242,13 @@ void* Loader::open(egl_connection_t* cnx)
 
     setEmulatorGlesValue();
 
-    dso = load_driver("GLES", cnx, EGL | GLESv1_CM | GLESv2);
+    // Check if hardware gralloc is set explicitly
+    char prop[PROPERTY_VALUE_MAX];
+    if (property_get("ro.hardware.gralloc", prop, nullptr) && strcmp(prop, "default")) {
+        dso = load_driver("GLES", cnx, EGL | GLESv1_CM | GLESv2);
+    } else {
+        dso = nullptr;
+    }
     if (dso) {
         hnd = new driver_t(dso);
     } else {
