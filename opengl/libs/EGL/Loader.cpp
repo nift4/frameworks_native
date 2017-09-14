@@ -225,7 +225,13 @@ void* Loader::open(egl_connection_t* cnx)
 
     setEmulatorGlesValue();
 
-    dso = load_driver("GLES", cnx, EGL | GLESv1_CM | GLESv2);
+    // Check if hardware gralloc is set explicitly
+    char prop[PROPERTY_VALUE_MAX];
+    if (property_get("ro.hardware.gralloc", prop, nullptr) && strcmp(prop, "default")) {
+        dso = load_driver("GLES", cnx, EGL | GLESv1_CM | GLESv2);
+    } else {
+        dso = nullptr;
+    }
     if (dso) {
         hnd = new driver_t(dso);
     } else {
