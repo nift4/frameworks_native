@@ -50,6 +50,7 @@ bool InputWindowInfo::isTrustedOverlay() const {
             || layoutParamsType == TYPE_SECURE_SYSTEM_OVERLAY
             || layoutParamsType == TYPE_DOCK_DIVIDER
             || layoutParamsType == TYPE_ACCESSIBILITY_OVERLAY
+            || layoutParamsType == TYPE_DISPLAY_OVERLAY
             || layoutParamsType == TYPE_INPUT_CONSUMER;
 }
 
