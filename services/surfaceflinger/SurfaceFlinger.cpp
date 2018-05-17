@@ -852,8 +852,10 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
                     density = 140;
                 } else if (area < 1920 * 1080) {
                     density = 160;
-                } else {
+                } else if (area < 2560 * 1600) {
                     density = 240;
+                } else {
+                    density = 320;
                 }
                 ALOGI("auto set density to %d", density);
             }
