@@ -24,7 +24,7 @@
 
 namespace android {
 
-struct DisplayInfo {
+struct __attribute__ ((__packed__)) DisplayInfo {
     uint32_t w{0};
     uint32_t h{0};
     float xdpi{0};
