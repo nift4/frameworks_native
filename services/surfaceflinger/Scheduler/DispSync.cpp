@@ -647,6 +647,14 @@ void DispSync::setPeriod(nsecs_t period) {
         ATRACE_INT("DispSync:PendingPeriod", period);
     }
     mPendingPeriod = period;
+    // On this time, this is first get the period config, set it immediately update.
+    // Don't wait the hardware vsync.
+    if (mNumResyncSamples == 0) {
+        ALOGD("First resync sample doesn't received, update the mPeriod immediately");
+        mPeriod = period;
+        mPhase = 0;
+        mThread->updateModel(mPeriod, mPhase, mReferenceTime);
+    }
 }
 
 nsecs_t DispSync::getPeriod() {
