@@ -442,7 +442,7 @@ private:
     // Cached HWC2 data, to ensure the same commands aren't sent to the HWC
     // multiple times.
     android::Region mVisibleRegion = android::Region::INVALID_REGION;
-    android::Region mDamageRegion = android::Region::INVALID_REGION;
+    android::Region mDamageRegion = android::Region(android::Rect::EMPTY_RECT);
     android::ui::Dataspace mDataSpace = android::ui::Dataspace::UNKNOWN;
     android::HdrMetadata mHdrMetadata;
     android::mat4 mColorMatrix;
