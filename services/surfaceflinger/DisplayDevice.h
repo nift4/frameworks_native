@@ -51,6 +51,7 @@ class IGraphicBufferProducer;
 class Layer;
 class SurfaceFlinger;
 class HWComposer;
+class ConsoleManagerThread;
 
 class DisplayDevice : public LightRefBase<DisplayDevice>
 {
@@ -247,6 +248,10 @@ private:
     Vector< sp<Layer> > mVisibleLayersSortedByZ;
     // list of layers needing fences
     Vector< sp<Layer> > mLayersNeedingFences;
+
+#ifdef CONSOLE_MANAGER
+    sp<ConsoleManagerThread> mConsoleManagerThread;
+#endif
 
     /*
      * Transaction state
