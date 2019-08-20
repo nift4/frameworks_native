@@ -31,6 +31,7 @@
 #include <ui/GraphicBuffer.h>
 #include <ui/Rect.h>
 #include <utils/Trace.h>
+#include <cutils/properties.h>
 
 #include "DisplayHardware/HWComposer.h"
 
@@ -67,11 +68,22 @@ bool RenderSurface::isValid() const {
 
 void RenderSurface::initialize() {
     ANativeWindow* const window = mNativeWindow.get();
+    char value[PROPERTY_VALUE_MAX] = {};
+    int format = HAL_PIXEL_FORMAT_RGBA_8888;
 
     int status = native_window_api_connect(window, NATIVE_WINDOW_API_EGL);
     ALOGE_IF(status != NO_ERROR, "Unable to connect BQ producer: %d", status);
-    status = native_window_set_buffers_format(window, HAL_PIXEL_FORMAT_RGBA_8888);
-    ALOGE_IF(status != NO_ERROR, "Unable to set BQ format to RGBA888: %d", status);
+
+    if (property_get("ro.hardware.egl", value, NULL) > 0){
+        ALOGI("Use BGRA_8888 as surface format when EGL is \"%s\"", value);
+        if (!strcmp("swiftshader", value)) {
+            format = HAL_PIXEL_FORMAT_BGRA_8888;
+        }
+    }
+
+    status = native_window_set_buffers_format(window, format);
+    ALOGE_IF(status != NO_ERROR, "Unable to set BQ format to %d: %d", format, status);
+
     status = native_window_set_usage(window, GRALLOC_USAGE_HW_RENDER);
     ALOGE_IF(status != NO_ERROR, "Unable to set BQ usage bits for GPU rendering: %d", status);
 }
