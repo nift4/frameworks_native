@@ -5236,10 +5236,10 @@ void TouchInputMapper::cookPointerData() {
             }
             break;
         case DISPLAY_ORIENTATION_180:
-            x = mSurfaceWidth - x_cal;
+            x = mSurfaceWidth - x_cal + mXTranslate;
             y = mSurfaceHeight - y_cal + mYTranslate;
-            left = float(mRawPointerAxes.x.maxValue - rawRight) * mXScale;
-            right = float(mRawPointerAxes.x.maxValue - rawLeft) * mXScale;
+            left = float(mRawPointerAxes.x.maxValue - rawRight) * mXScale + mXTranslate;
+            right = float(mRawPointerAxes.x.maxValue - rawLeft) * mXScale + mXTranslate;
             bottom = float(mRawPointerAxes.y.maxValue - rawTop) * mYScale + mYTranslate;
             top = float(mRawPointerAxes.y.maxValue - rawBottom) * mYScale + mYTranslate;
             orientation -= M_PI;
@@ -5248,10 +5248,10 @@ void TouchInputMapper::cookPointerData() {
             }
             break;
         case DISPLAY_ORIENTATION_270:
-            x = mSurfaceHeight - y_cal;
+            x = mSurfaceHeight - y_cal + mYTranslate;
             y = x_cal + mXTranslate;
-            left = float(mRawPointerAxes.y.maxValue - rawBottom) * mYScale;
-            right = float(mRawPointerAxes.y.maxValue - rawTop) * mYScale;
+            left = float(mRawPointerAxes.y.maxValue - rawBottom) * mYScale + mYTranslate;
+            right = float(mRawPointerAxes.y.maxValue - rawTop) * mYScale + mYTranslate;
             bottom = float(rawRight - mRawPointerAxes.x.minValue) * mXScale + mXTranslate;
             top = float(rawLeft - mRawPointerAxes.x.minValue) * mXScale + mXTranslate;
             orientation += M_PI_2;
