@@ -382,10 +382,16 @@ public:
 
     inline int32_t getRelativeX() const { return mRelX; }
     inline int32_t getRelativeY() const { return mRelY; }
+    inline int32_t getAbsoluteX() const { return mAbsX; }
+    inline int32_t getAbsoluteY() const { return mAbsY; }
+    inline bool hasMoved() const { return mMoved; }
 
 private:
     int32_t mRelX;
     int32_t mRelY;
+    int32_t mAbsX;
+    int32_t mAbsY;
+    bool mMoved;
 
     void clearRelativeAxes();
 };
@@ -954,6 +960,7 @@ private:
         Mode mode;
         bool hasAssociatedDisplay;
         bool orientationAware;
+        bool hasAbsAxis;
     } mParameters;
 
     CursorButtonAccumulator mCursorButtonAccumulator;
@@ -961,6 +968,8 @@ private:
     CursorScrollAccumulator mCursorScrollAccumulator;
 
     int32_t mSource;
+    RawAbsoluteAxisInfo mRawAbsXInfo;
+    RawAbsoluteAxisInfo mRawAbsYInfo;
     float mXScale;
     float mYScale;
     float mXPrecision;
@@ -985,6 +994,7 @@ private:
     void configureParameters();
     void dumpParameters(std::string& dump);
 
+    void rotateAbsolute(float* absX, float* absY);
     void sync(nsecs_t when);
 };
 
@@ -1121,6 +1131,7 @@ protected:
             PRESSURE_CALIBRATION_NONE,
             PRESSURE_CALIBRATION_PHYSICAL,
             PRESSURE_CALIBRATION_AMPLITUDE,
+            PRESSURE_CALIBRATION_DISABLE,
         };
 
         PressureCalibration pressureCalibration;
@@ -1167,6 +1178,9 @@ protected:
                 *outSize = 0;
             }
         }
+
+        // 5-point calibration parameters
+        int fiveCal[7];
     } mCalibration;
 
     // Affine location transformation/calibration

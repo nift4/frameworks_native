@@ -51,6 +51,8 @@
 #include <input/KeyCharacterMap.h>
 #include <input/VirtualKeyMap.h>
 
+#include <linux/vt.h>
+
 /* this macro is used to tell if "bit" is set in "array"
  * it selects a byte from the array, and does a boolean AND
  * operation with a byte that only has the relevant bit set.
@@ -885,6 +887,14 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
             }
         }
 
+#ifdef CONSOLE_MANAGER
+        struct vt_stat vs;
+        int fd_vt = open("/dev/tty0", O_RDWR | O_SYNC);
+        if (fd_vt >= 0) {
+            ioctl(fd_vt, VT_GETSTATE, &vs);
+            close(fd_vt);
+        }
+#endif
         // Grab the next input event.
         bool deviceChanged = false;
         while (mPendingEventIndex < mPendingEventCount) {
@@ -959,6 +969,12 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
                 } else if ((readSize % sizeof(struct input_event)) != 0) {
                     ALOGE("could not get event (wrong size: %d)", readSize);
                 } else {
+#ifdef CONSOLE_MANAGER
+                    if (vs.v_active != ANDROID_VT) {
+                        ALOGV("Skip a non Android VT event");
+                        continue;
+                    }
+#endif
                     int32_t deviceId = device->id == mBuiltInKeyboardId ? 0 : device->id;
 
                     size_t count = size_t(readSize) / sizeof(struct input_event);
@@ -1186,8 +1202,17 @@ void EventHub::unregisterVideoDeviceFromEpollLocked(const TouchVideoDevice& vide
     }
 }
 
-status_t EventHub::openDeviceLocked(const char* devicePath) {
+status_t EventHub::openDeviceLocked(const char *devicePath) {
+    return openDeviceLocked(devicePath, false);
+}
+
+status_t EventHub::openDeviceLocked(const char *devicePath, bool ignoreAlreadyOpened) {
     char buffer[80];
+
+    if (ignoreAlreadyOpened && (getDeviceByPathLocked(devicePath) != 0)) {
+        ALOGV("Ignoring device '%s' that has already been opened.", devicePath);
+        return 0;
+    }
 
     ALOGV("Opening device: %s", devicePath);
 
@@ -1303,6 +1328,12 @@ status_t EventHub::openDeviceLocked(const char* devicePath) {
             && test_bit(REL_X, device->relBitmask)
             && test_bit(REL_Y, device->relBitmask)) {
         device->classes |= INPUT_DEVICE_CLASS_CURSOR;
+    // Is this an absolute x-y axis with relative wheel mouse device?
+    } else if (test_bit(BTN_MOUSE, device->keyBitmask)
+               && test_bit(ABS_X, device->absBitmask)
+               && test_bit(ABS_Y, device->absBitmask)
+               && test_bit(REL_WHEEL, device->relBitmask)) {
+        device->classes |= INPUT_DEVICE_CLASS_CURSOR;
     }
 
     // See if this is a rotary encoder type device.
@@ -1325,9 +1356,10 @@ status_t EventHub::openDeviceLocked(const char* devicePath) {
             device->classes |= INPUT_DEVICE_CLASS_TOUCH | INPUT_DEVICE_CLASS_TOUCH_MT;
         }
     // Is this an old style single-touch driver?
-    } else if (test_bit(BTN_TOUCH, device->keyBitmask)
+    } else if ((test_bit(BTN_TOUCH, device->keyBitmask) || test_bit(BTN_LEFT, device->keyBitmask))
             && test_bit(ABS_X, device->absBitmask)
-            && test_bit(ABS_Y, device->absBitmask)) {
+            && test_bit(ABS_Y, device->absBitmask)
+            && !test_bit(REL_WHEEL, device->relBitmask)) {
         device->classes |= INPUT_DEVICE_CLASS_TOUCH;
     // Is this a BT stylus?
     } else if ((test_bit(ABS_PRESSURE, device->absBitmask) ||
@@ -1398,7 +1430,10 @@ status_t EventHub::openDeviceLocked(const char* devicePath) {
 
         // 'Q' key support = cheap test of whether this is an alpha-capable kbd
         if (hasKeycodeLocked(device, AKEYCODE_Q)) {
-            device->classes |= INPUT_DEVICE_CLASS_ALPHAKEY;
+            if ((device->identifier.name != "AT Translated Set 2 keyboard") ||
+                    !property_get_bool("ro.ignore_atkbd", 0)) {
+                device->classes |= INPUT_DEVICE_CLASS_ALPHAKEY;
+            }
         }
 
         // See if this device has a DPAD.
@@ -1829,7 +1864,7 @@ status_t EventHub::readNotifyLocked() {
             if (event->wd == mInputWd) {
                 std::string filename = StringPrintf("%s/%s", DEVICE_PATH, event->name);
                 if(event->mask & IN_CREATE) {
-                    openDeviceLocked(filename.c_str());
+                    openDeviceLocked(filename.c_str(), true);
                 } else {
                     ALOGI("Removing device '%s' due to inotify event\n", filename.c_str());
                     closeDeviceByPathLocked(filename.c_str());
