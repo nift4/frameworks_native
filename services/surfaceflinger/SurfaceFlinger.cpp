@@ -2578,10 +2578,9 @@ void SurfaceFlinger::postComposition()
         // Disable SmoMo by passing empty layer stack in multiple display case
         if (mDisplays.size() == 1) {
             for (const auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-                smomo::SmomoLayerStats layerStats = {
-                    layer->getName().string(),
-                    layer->getSequence(),
-                };
+                smomo::SmomoLayerStats layerStats;
+                layerStats.id = layer->getSequence();
+                layerStats.name = layer->getName().string();
                 layers.push_back(layerStats);
             }
 
@@ -2627,11 +2626,13 @@ void SurfaceFlinger::forceResyncModel() NO_THREAD_SAFETY_ANALYSIS {
     // as soon as change is fps(period) is observed.
 
     if (period > mVsyncPeriod.at(mVsyncPeriod.size() - 1)) {
-        mScheduler->resyncToHardwareVsync(true, period);
+        ATRACE_CALL();
+        mScheduler->resyncToHardwareVsync(true, period, true /* force resync */);
         mVsyncPeriod.push_back(period);
     } else if (period < mVsyncPeriod.at(mVsyncPeriod.size() - 1)) {
         // Vsync period changed. Trigger resync.
-        mScheduler->resyncToHardwareVsync(true, period);
+        ATRACE_CALL();
+        mScheduler->resyncToHardwareVsync(true, period, true /* force resync */);
         mVsyncPeriod = {};
     }
 }
@@ -3204,15 +3205,23 @@ void SurfaceFlinger::setFrameBufferSizeForScaling(sp<DisplayDevice> displayDevic
                                                   const DisplayDeviceState& state) {
     base::unique_fd fd;
     auto display = displayDevice->getCompositionDisplay();
+    int newWidth = state.viewport.width();
+    int newHeight = state.viewport.height();
 
-    if (displayDevice->getWidth() == state.viewport.width() &&
-        displayDevice->getHeight() == state.viewport.height()) {
+    if (state.orientation == DISPLAY_ORIENTATION_90 || state.orientation ==
+        DISPLAY_ORIENTATION_270) {
+        std::swap(newWidth, newHeight);
+    }
+
+    if (displayDevice->getWidth() == newWidth &&
+        displayDevice->getHeight() == newHeight) {
+        displayDevice->setProjection(state.orientation, state.viewport, state.viewport);
         return;
     }
 
     if (mBootStage == BootStage::FINISHED) {
+        displayDevice->setDisplaySize(newWidth, newHeight);
         displayDevice->setProjection(state.orientation, state.viewport, state.viewport);
-        displayDevice->setDisplaySize(state.viewport.width(), state.viewport.height());
         display->getRenderSurface()->setViewportAndProjection();
         display->getRenderSurface()->flipClientTarget(true);
         // queue a scratch buffer to flip Client Target with updated size
@@ -3995,15 +4004,18 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
     const auto displayId = display->getId();
     auto& renderEngine = getRenderEngine();
     bool isSecureDisplay = false;
+    bool isSecureCamera = false;
     for (const auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
         if (layer->isSecureDisplay()) {
             isSecureDisplay = true;
-            break;
+        }
+        if (layer->isSecureCamera()) {
+            isSecureCamera = true;
         }
     }
 
     const bool supportProtectedContent =
-            renderEngine.supportsProtectedContent() && !isSecureDisplay;
+            renderEngine.supportsProtectedContent() && !isSecureDisplay && !isSecureCamera;
 
     const Region bounds(displayState.bounds);
     const DisplayRenderArea renderArea(displayDevice);
@@ -4069,7 +4081,8 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
                                               HWC2::DisplayCapability::SkipClientColorTransform);
 
         // Compute the global color transform matrix.
-        applyColorMatrix = !hasDeviceComposition && !skipClientColorTransform;
+        applyColorMatrix = !hasDeviceComposition && !skipClientColorTransform &&
+                           (displayDevice->isPrimary() || displayDevice->getIsDisplayBuiltInType());
         if (applyColorMatrix) {
             clientCompositionDisplay.colorTransform = displayState.colorTransformMat;
         }
@@ -5453,12 +5466,11 @@ void SurfaceFlinger::dumpMemoryAllocations(bool dump)
         return;
     }
 
-    {
-       Mutex::Autolock lock(mLayerCountLock);
-       if (mNumLayers < 50) {
-           return;
-       }
+    if (mMemoryDump.mMemoryDumpCount--) {
+        return;
     }
+    mMemoryDump.mMemoryDumpCount = 300;
+
     std::string dumpsys;
     GraphicBufferAllocator& alloc(GraphicBufferAllocator::get());
     alloc.dump(dumpsys);
