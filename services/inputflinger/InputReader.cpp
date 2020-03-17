@@ -1395,15 +1395,29 @@ void CursorMotionAccumulator::process(const RawEvent* rawEvent) {
         switch (rawEvent->code) {
         case REL_X:
             mRelX = rawEvent->value;
+            mMoved = true;
             break;
         case REL_Y:
             mRelY = rawEvent->value;
+            mMoved = true;
+            break;
+        }
+    } else if (rawEvent->type == EV_ABS) {
+        switch (rawEvent->code) {
+        case ABS_X:
+            mAbsX = rawEvent->value;
+            mMoved = true;
+            break;
+        case ABS_Y:
+            mAbsY = rawEvent->value;
+            mMoved = true;
             break;
         }
     }
 }
 
 void CursorMotionAccumulator::finishSync() {
+    mMoved = false;
     clearRelativeAxes();
 }
 
@@ -1455,7 +1469,7 @@ TouchButtonAccumulator::TouchButtonAccumulator() :
 }
 
 void TouchButtonAccumulator::configure(InputDevice* device) {
-    mHaveBtnTouch = device->hasKey(BTN_TOUCH);
+    mHaveBtnTouch = device->hasKey(BTN_TOUCH) || device->hasKey(BTN_LEFT);
     mHaveStylus = device->hasKey(BTN_TOOL_PEN)
             || device->hasKey(BTN_TOOL_RUBBER)
             || device->hasKey(BTN_TOOL_BRUSH)
@@ -1464,7 +1478,7 @@ void TouchButtonAccumulator::configure(InputDevice* device) {
 }
 
 void TouchButtonAccumulator::reset(InputDevice* device) {
-    mBtnTouch = device->isKeyPressed(BTN_TOUCH);
+    mBtnTouch = device->isKeyPressed(BTN_TOUCH) || device->isKeyPressed(BTN_LEFT);
     mBtnStylus = device->isKeyPressed(BTN_STYLUS);
     // BTN_0 is what gets mapped for the HID usage Digitizers.SecondaryBarrelSwitch
     mBtnStylus2 =
@@ -1503,6 +1517,7 @@ void TouchButtonAccumulator::process(const RawEvent* rawEvent) {
     if (rawEvent->type == EV_KEY) {
         switch (rawEvent->code) {
         case BTN_TOUCH:
+        case BTN_LEFT:
             mBtnTouch = rawEvent->value;
             break;
         case BTN_STYLUS:
@@ -2612,6 +2627,10 @@ void CursorInputMapper::configure(nsecs_t when,
             [[fallthrough]];
         case Parameters::MODE_POINTER:
             mSource = AINPUT_SOURCE_MOUSE;
+            if (mParameters.hasAbsAxis) {
+                getAbsoluteAxisInfo(ABS_X, &mRawAbsXInfo);
+                getAbsoluteAxisInfo(ABS_Y, &mRawAbsYInfo);
+            }
             mXPrecision = 1.0f;
             mYPrecision = 1.0f;
             mXScale = 1.0f;
@@ -2664,11 +2683,20 @@ void CursorInputMapper::configure(nsecs_t when,
 
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
         mOrientation = DISPLAY_ORIENTATION_0;
-        if (mParameters.orientationAware && mParameters.hasAssociatedDisplay) {
+        if (mParameters.hasAssociatedDisplay) {
             std::optional<DisplayViewport> internalViewport =
                     config->getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
             if (internalViewport) {
                 mOrientation = internalViewport->orientation;
+                if (mParameters.orientationAware) {
+                    mOrientation = internalViewport->orientation;
+                }
+                if (mParameters.hasAbsAxis) {
+                    mXScale = float(internalViewport->logicalRight - internalViewport->logicalLeft)/(mRawAbsXInfo.maxValue - mRawAbsXInfo.minValue + 1);
+                    mYScale = float(internalViewport->logicalBottom - internalViewport->logicalTop)/(mRawAbsYInfo.maxValue - mRawAbsYInfo.minValue + 1);
+                    mXPrecision = 1.0f / mXScale;
+                    mYPrecision = 1.0f / mYScale;
+                }
             }
         }
 
@@ -2699,6 +2727,11 @@ void CursorInputMapper::configureParameters() {
     if (mParameters.mode == Parameters::MODE_POINTER || mParameters.orientationAware) {
         mParameters.hasAssociatedDisplay = true;
     }
+
+    mParameters.hasAbsAxis = false;
+    if (mParameters.mode == Parameters::MODE_POINTER) {
+        mParameters.hasAbsAxis = getDevice()->hasAbsoluteAxis(ABS_X) && getDevice()->hasAbsoluteAxis(ABS_Y) ? true : false;
+    }
 }
 
 void CursorInputMapper::dumpParameters(std::string& dump) {
@@ -2722,6 +2755,8 @@ void CursorInputMapper::dumpParameters(std::string& dump) {
 
     dump += StringPrintf(INDENT4 "OrientationAware: %s\n",
             toString(mParameters.orientationAware));
+    dump += StringPrintf(INDENT4 "Absolute Axis: %s\n",
+            toString(mParameters.hasAbsAxis));
 }
 
 void CursorInputMapper::reset(nsecs_t when) {
@@ -2749,6 +2784,28 @@ void CursorInputMapper::process(const RawEvent* rawEvent) {
     }
 }
 
+void CursorInputMapper::rotateAbsolute(float* absX, float* absY) {
+    float temp;
+    switch (mOrientation) {
+    case DISPLAY_ORIENTATION_90:
+        temp = *absX;
+        *absX = *absY;
+        *absY = ((mRawAbsXInfo.maxValue - mRawAbsXInfo.minValue) + 1) - temp;
+        break;
+
+    case DISPLAY_ORIENTATION_180:
+        *absX = ((mRawAbsXInfo.maxValue - mRawAbsXInfo.minValue) + 1) - *absX;
+        *absY = ((mRawAbsYInfo.maxValue - mRawAbsYInfo.minValue) + 1) - *absY;
+        break;
+
+    case DISPLAY_ORIENTATION_270:
+        temp = *absX;
+        *absX = ((mRawAbsYInfo.maxValue - mRawAbsYInfo.minValue) + 1) - *absY;
+        *absY = temp;
+        break;
+    }
+}
+
 void CursorInputMapper::sync(nsecs_t when) {
     int32_t lastButtonState = mButtonState;
     int32_t currentButtonState = mCursorButtonAccumulator.getButtonState();
@@ -2770,17 +2827,7 @@ void CursorInputMapper::sync(nsecs_t when) {
     int32_t buttonsPressed = currentButtonState & ~lastButtonState;
     int32_t buttonsReleased = lastButtonState & ~currentButtonState;
 
-    float deltaX = mCursorMotionAccumulator.getRelativeX() * mXScale;
-    float deltaY = mCursorMotionAccumulator.getRelativeY() * mYScale;
-    bool moved = deltaX != 0 || deltaY != 0;
-
-    // Rotate delta according to orientation if needed.
-    if (mParameters.orientationAware && mParameters.hasAssociatedDisplay
-            && (deltaX != 0.0f || deltaY != 0.0f)) {
-        rotateDelta(mOrientation, &deltaX, &deltaY);
-    }
-
-    // Move the pointer.
+    bool moved = false;
     PointerProperties pointerProperties;
     pointerProperties.clear();
     pointerProperties.id = 0;
@@ -2789,6 +2836,47 @@ void CursorInputMapper::sync(nsecs_t when) {
     PointerCoords pointerCoords;
     pointerCoords.clear();
 
+    if (!mParameters.hasAbsAxis) {
+        float deltaX = mCursorMotionAccumulator.getRelativeX() * mXScale;
+        float deltaY = mCursorMotionAccumulator.getRelativeY() * mYScale;
+        moved = deltaX != 0 || deltaY != 0;
+
+        // Rotate delta according to orientation if needed.
+        if (mParameters.orientationAware && mParameters.hasAssociatedDisplay
+                && (deltaX != 0.0f || deltaY != 0.0f)) {
+            rotateDelta(mOrientation, &deltaX, &deltaY);
+        }
+        mPointerVelocityControl.move(when, &deltaX, &deltaY);
+        if (mSource == AINPUT_SOURCE_MOUSE) {
+            if (moved) {
+                mPointerController->move(deltaX, deltaY);
+            }
+            float x, y;
+            mPointerController->getPosition(&x, &y);
+            pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_X, x);
+            pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, y);
+            pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, deltaX);
+            pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, deltaY);
+        } else {
+            pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_X, deltaX);
+            pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, deltaY);
+        }
+    } else {
+        float absX = mCursorMotionAccumulator.getAbsoluteX() - mRawAbsXInfo.minValue;
+        float absY = mCursorMotionAccumulator.getAbsoluteY() - mRawAbsYInfo.minValue;
+        if (mParameters.orientationAware) {
+            rotateAbsolute(&absX, &absY);
+        }
+        absX = absX * mXScale;
+        absY = absY * mYScale;
+        moved = mCursorMotionAccumulator.hasMoved();
+        if (moved) {
+            mPointerController->setPosition(absX, absY);
+        }
+        pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_X, absX);
+        pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, absY);
+    }
+
     float vscroll = mCursorScrollAccumulator.getRelativeVWheel();
     float hscroll = mCursorScrollAccumulator.getRelativeHWheel();
     bool scrolled = vscroll != 0 || hscroll != 0;
@@ -2796,17 +2884,11 @@ void CursorInputMapper::sync(nsecs_t when) {
     mWheelYVelocityControl.move(when, nullptr, &vscroll);
     mWheelXVelocityControl.move(when, &hscroll, nullptr);
 
-    mPointerVelocityControl.move(when, &deltaX, &deltaY);
-
     int32_t displayId;
     if (mSource == AINPUT_SOURCE_MOUSE) {
         if (moved || scrolled || buttonsChanged) {
             mPointerController->setPresentation(
                     PointerControllerInterface::PRESENTATION_POINTER);
-
-            if (moved) {
-                mPointerController->move(deltaX, deltaY);
-            }
 
             if (buttonsChanged) {
                 mPointerController->setButtonState(currentButtonState);
@@ -2814,17 +2896,8 @@ void CursorInputMapper::sync(nsecs_t when) {
 
             mPointerController->unfade(PointerControllerInterface::TRANSITION_IMMEDIATE);
         }
-
-        float x, y;
-        mPointerController->getPosition(&x, &y);
-        pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_X, x);
-        pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, y);
-        pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, deltaX);
-        pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, deltaY);
         displayId = mPointerController->getDisplayId();
     } else {
-        pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_X, deltaX);
-        pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, deltaY);
         displayId = ADISPLAY_ID_NONE;
     }
 
@@ -3296,6 +3369,19 @@ void TouchInputMapper::configure(nsecs_t when,
         // Configure device sources, surface dimensions, orientation and
         // scaling factors.
         configureSurface(when, &resetNeeded);
+    }
+
+    if (!changes || (changes & InputReaderConfiguration::CHANGE_DEVICE_ALIAS)) {
+        // Get 5-point calibration parameters
+        int *p = mCalibration.fiveCal;
+        p[6] = 0;
+        if (FILE *file = fopen("/data/misc/tscal/pointercal", "r")) {
+            if (fscanf(file, "%d %d %d %d %d %d %d", &p[0], &p[1], &p[2], &p[3], &p[4], &p[5], &p[6]) == 7) {
+                p[0] *= mXScale, p[1] *= mYScale, p[3] *= mXScale, p[4] *= mYScale;
+                ALOGD("pointercal loaded ok");
+            }
+            fclose(file);
+        }
     }
 
     if (changes && resetNeeded) {
@@ -4060,6 +4146,8 @@ void TouchInputMapper::parseCalibration() {
             out.pressureCalibration = Calibration::PRESSURE_CALIBRATION_PHYSICAL;
         } else if (pressureCalibrationString == "amplitude") {
             out.pressureCalibration = Calibration::PRESSURE_CALIBRATION_AMPLITUDE;
+        } else if (pressureCalibrationString == "disable") {
+            out.pressureCalibration = Calibration::PRESSURE_CALIBRATION_DISABLE;
         } else if (pressureCalibrationString != "default") {
             ALOGW("Invalid value for touch.pressure.calibration: '%s'",
                     pressureCalibrationString.string());
@@ -4130,6 +4218,9 @@ void TouchInputMapper::resolveCalibration() {
     if (mRawPointerAxes.pressure.valid) {
         if (mCalibration.pressureCalibration == Calibration::PRESSURE_CALIBRATION_DEFAULT) {
             mCalibration.pressureCalibration = Calibration::PRESSURE_CALIBRATION_PHYSICAL;
+        } else if (mCalibration.pressureCalibration == Calibration::PRESSURE_CALIBRATION_DISABLE) {
+            mRawPointerAxes.pressure.valid = false;
+            mCalibration.pressureCalibration = Calibration::PRESSURE_CALIBRATION_NONE;
         }
     } else {
         mCalibration.pressureCalibration = Calibration::PRESSURE_CALIBRATION_NONE;
@@ -5155,11 +5246,24 @@ void TouchInputMapper::cookPointerData() {
         // Adjust X, Y, and coverage coords for surface orientation.
         float x, y;
         float left, top, right, bottom;
+        float x_temp = float(xTransformed - mRawPointerAxes.x.minValue);
+        float y_temp = float(yTransformed - mRawPointerAxes.y.minValue);
+        float x_cal, y_cal;
+        int *p = mCalibration.fiveCal;
+        if (p[6]) {
+            // Apply 5-point calibration algorithm
+            x_cal = (x_temp * p[0] + y_temp * p[1] + p[2] ) / p[6];
+            y_cal = (x_temp * p[3] + y_temp * p[4] + p[5] ) / p[6];
+            ALOGV("5cal: x_temp=%f y_temp=%f x_cal=%f y_cal=%f", x_temp, y_temp, x_cal, y_cal);
+        } else {
+            x_cal = x_temp * mXScale;
+            y_cal = y_temp * mYScale;
+        }
 
         switch (mSurfaceOrientation) {
         case DISPLAY_ORIENTATION_90:
-            x = float(yTransformed - mRawPointerAxes.y.minValue) * mYScale + mYTranslate;
-            y = float(mRawPointerAxes.x.maxValue - xTransformed) * mXScale + mXTranslate;
+            x = y_cal + mYTranslate;
+            y = mSurfaceWidth - x_cal + mXTranslate;
             left = float(rawTop - mRawPointerAxes.y.minValue) * mYScale + mYTranslate;
             right = float(rawBottom- mRawPointerAxes.y.minValue) * mYScale + mYTranslate;
             bottom = float(mRawPointerAxes.x.maxValue - rawLeft) * mXScale + mXTranslate;
@@ -5170,8 +5274,8 @@ void TouchInputMapper::cookPointerData() {
             }
             break;
         case DISPLAY_ORIENTATION_180:
-            x = float(mRawPointerAxes.x.maxValue - xTransformed) * mXScale;
-            y = float(mRawPointerAxes.y.maxValue - yTransformed) * mYScale + mYTranslate;
+            x = mSurfaceWidth - x_cal;
+            y = mSurfaceHeight - y_cal + mYTranslate;
             left = float(mRawPointerAxes.x.maxValue - rawRight) * mXScale;
             right = float(mRawPointerAxes.x.maxValue - rawLeft) * mXScale;
             bottom = float(mRawPointerAxes.y.maxValue - rawTop) * mYScale + mYTranslate;
@@ -5182,8 +5286,8 @@ void TouchInputMapper::cookPointerData() {
             }
             break;
         case DISPLAY_ORIENTATION_270:
-            x = float(mRawPointerAxes.y.maxValue - yTransformed) * mYScale;
-            y = float(xTransformed - mRawPointerAxes.x.minValue) * mXScale + mXTranslate;
+            x = mSurfaceHeight - y_cal;
+            y = x_cal + mXTranslate;
             left = float(mRawPointerAxes.y.maxValue - rawBottom) * mYScale;
             right = float(mRawPointerAxes.y.maxValue - rawTop) * mYScale;
             bottom = float(rawRight - mRawPointerAxes.x.minValue) * mXScale + mXTranslate;
@@ -5194,8 +5298,8 @@ void TouchInputMapper::cookPointerData() {
             }
             break;
         default:
-            x = float(xTransformed - mRawPointerAxes.x.minValue) * mXScale + mXTranslate;
-            y = float(yTransformed - mRawPointerAxes.y.minValue) * mYScale + mYTranslate;
+            x = x_cal + mXTranslate;
+            y = y_cal + mYTranslate;
             left = float(rawLeft - mRawPointerAxes.x.minValue) * mXScale + mXTranslate;
             right = float(rawRight - mRawPointerAxes.x.minValue) * mXScale + mXTranslate;
             bottom = float(rawBottom - mRawPointerAxes.y.minValue) * mYScale + mYTranslate;

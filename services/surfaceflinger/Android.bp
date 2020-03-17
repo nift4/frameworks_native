@@ -168,6 +168,10 @@ cc_library_shared {
     // built, so the same settings can be used elsewhere.
     name: "libsurfaceflinger",
     defaults: ["libsurfaceflinger_production_defaults"],
+    cflags: [
+        "-DCONSOLE_MANAGER",
+        "-DANDROID_VT=7",
+    ],
     cppflags: [
         "-Wno-unused-parameter",
     ],
@@ -179,6 +183,9 @@ cc_library_shared {
         "SurfaceFlingerFactory.cpp",
     ],
     logtags: ["EventLog/EventLogTags.logtags"],
+    include_dirs: [
+        "external/drm_gralloc",
+    ],
     product_variables: {
         bliss: {
             uses_qcom_um_family: {
