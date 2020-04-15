@@ -658,7 +658,7 @@ void DispSync::setPeriod(nsecs_t period) {
 nsecs_t DispSync::getPeriod() {
     // lock mutex as mPeriod changes multiple times in updateModelLocked
     Mutex::Autolock lock(mMutex);
-    return mPeriod;
+    return mPeriod ? mPeriod : mPendingPeriod;
 }
 
 void DispSync::updateModelLocked() {
