@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <thread>
 
 #include <binder/Parcel.h>
 #include <binder/IPCThreadState.h>
@@ -631,6 +632,20 @@ status_t BnSurfaceComposer::onTransact(
                 reply->write(*outBuffer);
                 reply->writeBool(capturedSecureLayers);
             }
+
+            // XXX
+            // When outBuffer goes out of scope, the destructor gets called and on some
+            // graphics platforms (intel i915) this will actually free the underlying buffer
+            // containing the screen capture. The guy on the other end of this binder transaction
+            // will try to open the buffer that has been freed and fail.
+            //
+            // The super-hacky workaround here is to delay the destructor call in a thread so
+            // the binder client can obtain the buffer in question. When the thread timeout expires
+            // the destructor will get called and clean up the buffer so there is no memory leak.
+            std::thread([outBuffer]() {
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            }).detach();
+
             return NO_ERROR;
         }
         case CAPTURE_LAYERS: {
