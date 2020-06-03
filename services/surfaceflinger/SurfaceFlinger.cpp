@@ -733,8 +733,11 @@ void SurfaceFlinger::init() {
     mVsyncModulator.setEventThreads(mSFEventThread.get(), mEventThread.get());
 
     // Get a RenderEngine for the given display / config (can't fail)
+    extern bool hasHardwareRenderer();
     getBE().mRenderEngine =
-            RE::impl::RenderEngine::create(HAL_PIXEL_FORMAT_RGBA_8888,
+            RE::impl::RenderEngine::create(hasHardwareRenderer()
+                                                   ? HAL_PIXEL_FORMAT_RGBA_8888
+                                                   : HAL_PIXEL_FORMAT_BGRA_8888,
                                            hasWideColorDisplay
                                                    ? RE::RenderEngine::WIDE_COLOR_SUPPORT
                                                    : 0);

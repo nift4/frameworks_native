@@ -44,6 +44,11 @@ extern "C" {
 namespace android {
 // ----------------------------------------------------------------------------
 
+ANDROID_API bool hasHardwareRenderer()
+{
+    char prop[PROPERTY_VALUE_MAX];
+    return (property_get("ro.hardware.gralloc", prop, nullptr) && strcmp(prop, "default"));
+}
 
 /*
  * EGL userspace drivers must be provided either:
@@ -226,8 +231,7 @@ void* Loader::open(egl_connection_t* cnx)
     setEmulatorGlesValue();
 
     // Check if hardware gralloc is set explicitly
-    char prop[PROPERTY_VALUE_MAX];
-    if (property_get("ro.hardware.gralloc", prop, nullptr) && strcmp(prop, "default")) {
+    if (hasHardwareRenderer()) {
         dso = load_driver("GLES", cnx, EGL | GLESv1_CM | GLESv2);
     } else {
         dso = nullptr;
