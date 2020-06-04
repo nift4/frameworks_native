@@ -925,11 +925,11 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
     public:
         static int getEmuDensity() {
             return getDensityFromProperty("qemu.sf.lcd_density"); }
-        static int getBuildDensity(const DisplayInfo& info)  {
+        static int getBuildDensity(const sp<const DisplayDevice>& hw) {
             static int density = getDensityFromProperty("ro.sf.lcd_density");
 #if defined(__i386__) || defined(__x86_64__)
-            if (density == 0) {
-                uint32_t area = info.w * info.h;
+            if (density == 0 && hw) {
+                uint32_t area = hw->getWidth() * hw->getHeight();
                 if (area <= 800 * 480) {
                     density = 120;
                 } else if (area <= 1024 * 600) {
@@ -943,7 +943,7 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
                 } else {
                     density = 320;
                 }
-                ALOGI("auto set density to %d", density);
+                ALOGI("auto set density to %d for primary display %d x %d", density, hw->getWidth(), hw->getHeight());
             }
 #endif
             return density;
@@ -959,12 +959,11 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
 
         float xdpi = hwConfig->getDpiX();
         float ydpi = hwConfig->getDpiY();
-        info.w = hwConfig->getWidth();
-        info.h = hwConfig->getHeight();
 
         if (type == DisplayDevice::DISPLAY_PRIMARY) {
+            sp<const DisplayDevice> hw(getDefaultDisplayDeviceLocked());
             // The density of the device is provided by a build property
-            float density = Density::getBuildDensity(info) / 160.0f;
+            float density = Density::getBuildDensity(hw) / 160.0f;
             if (density == 0) {
                 // the build doesn't provide a density -- this is wrong!
                 // use xdpi instead
@@ -979,7 +978,6 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
             info.density = density;
 
             // TODO: this needs to go away (currently needed only by webkit)
-            sp<const DisplayDevice> hw(getDefaultDisplayDeviceLocked());
             info.orientation = hw ? hw->getOrientation() : 0;
         } else {
             // TODO: where should this value come from?
@@ -988,6 +986,8 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
             info.orientation = 0;
         }
 
+        info.w = hwConfig->getWidth();
+        info.h = hwConfig->getHeight();
         info.xdpi = xdpi;
         info.ydpi = ydpi;
         info.fps = 1e9 / hwConfig->getVsyncPeriod();
