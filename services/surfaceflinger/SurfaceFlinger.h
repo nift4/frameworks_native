@@ -347,8 +347,6 @@ public:
     bool authenticateSurfaceTextureLocked(
         const sp<IGraphicBufferProducer>& bufferProducer) const;
 
-    int getPrimaryDisplayOrientation() const { return mPrimaryDisplayOrientation; }
-
     status_t clearLayerFrameStats(const sp<const Client>& client, const sp<IBinder>& handle);
 
     status_t getLayerFrameStats(const sp<const Client>& client, const sp<IBinder>& handle, FrameStats* outStats);
