@@ -150,7 +150,8 @@ public:
 
         const bool isVendorService =
             strcmp(ProcessState::self()->getDriverName().c_str(), "/dev/vndbinder") == 0;
-        const long timeout = uptimeMillis() + 5000;
+        const long timeout = 5000;
+        int64_t startTime = uptimeMillis();
         if (!gSystemBootCompleted && !isVendorService) {
             // Vendor code can't access system properties
             char bootCompleted[PROPERTY_VALUE_MAX];
@@ -165,7 +166,7 @@ public:
         const bool isBuildTypeEng = strcmp(buildType, "eng") == 0;
 
         int n = 0;
-        while (uptimeMillis() < timeout) {
+        while (uptimeMillis() - startTime < timeout) {
             n++;
             if (isVendorService) {
                 property_get("ro.build.type", buildType, "unknown");

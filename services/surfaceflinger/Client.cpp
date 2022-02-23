@@ -158,7 +158,7 @@ status_t Client::createSurface(
     }
 
     return mFlinger->createLayer(name, this, w, h, format, flags, windowType,
-                                 ownerUid, handle, gbp, &parent);
+                                 ownerUid, handle, gbp, parentHandle, parentLayer);
 }
 
 status_t Client::destroySurface(const sp<IBinder>& handle) {
