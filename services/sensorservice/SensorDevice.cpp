@@ -26,6 +26,7 @@
 #include <frameworks/base/core/proto/android/service/sensor_service.proto.h>
 #include <sensors/convert.h>
 #include <cutils/atomic.h>
+#include <cutils/properties.h>
 #include <utils/Errors.h>
 #include <utils/Singleton.h>
 
@@ -202,6 +203,10 @@ SensorDevice::~SensorDevice() {
 }
 
 bool SensorDevice::connectHidlService() {
+    if (property_get_bool("debug.sensors.use_legacy", true)) {
+    HalConnectionStatus status = connectHidlServiceV1_0();
+    return (status == HalConnectionStatus::CONNECTED);
+    } else {
     HalConnectionStatus status = connectHidlServiceV2_1();
     if (status == HalConnectionStatus::DOES_NOT_EXIST) {
         status = connectHidlServiceV2_0();
@@ -211,6 +216,7 @@ bool SensorDevice::connectHidlService() {
         status = connectHidlServiceV1_0();
     }
     return (status == HalConnectionStatus::CONNECTED);
+    }
 }
 
 SensorDevice::HalConnectionStatus SensorDevice::connectHidlServiceV1_0() {
