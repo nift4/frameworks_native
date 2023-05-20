@@ -167,7 +167,7 @@ uint32_t getAbsAxisUsage(int32_t axis, uint32_t deviceClasses) {
                 return INPUT_DEVICE_CLASS_TOUCH;
 
     // Absolute mouse support
-    if (deviceClasses & INPUT_DEVICE_CLASS_CURSOR)) {
+    if (deviceClasses & INPUT_DEVICE_CLASS_CURSOR) {
         switch (axis) {
             case ABS_X:
             case ABS_Y:

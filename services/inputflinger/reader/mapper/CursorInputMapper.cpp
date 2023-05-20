@@ -265,7 +265,7 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
 
         if (mCursorPositionAccumulator.isSupported()) {
             std::optional<DisplayViewport> viewport =
-                    config->getDisplayViewportByType(ViewportType::INTERNAL);
+                    config->getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
             if (viewport) {
                 mXScale = float(viewport->physicalRight - viewport->physicalLeft) / mCursorPositionAccumulator.getSpanAbsX();
                 mYScale = float(viewport->physicalBottom - viewport->physicalTop) / mCursorPositionAccumulator.getSpanAbsY();
